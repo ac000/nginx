@@ -1750,9 +1750,29 @@ ngx_http_proxy_v2_filter_init(void *data)
             return NGX_ERROR;
         }
 
-        u->length = 0;
-        u->pipe->length = 0;
         ctx->done = 1;
+
+        if (u->buffer.pos == u->buffer.last && u->pipe->preread_size == 0) {
+
+            /* the response is complete */
+
+            u->length = 0;
+            u->pipe->length = 0;
+
+        } else {
+
+            /*
+             * Control frames were received along with the response headers
+             * (buffered as preread data or left in the buffer).  Keep reading
+             * input so that these frames are processed via
+             * ngx_http_proxy_v2_process_frames(), which lets the connection
+             * be kept alive instead of being closed once the empty-body
+             * response is finalized.
+             */
+
+            u->length = 1;
+            u->pipe->length = 1;
+        }
 
     } else {
         u->length = 1;
