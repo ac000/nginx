@@ -98,6 +98,13 @@ ngx_quic_compat_init(ngx_conf_t *cf, SSL_CTX *ctx)
 }
 
 
+ngx_int_t
+ngx_quic_compat_has_transport_params(SSL_CTX *ctx)
+{
+    return SSL_CTX_has_client_custom_ext(ctx, NGX_QUIC_COMPAT_SSL_TP_EXT);
+}
+
+
 static void
 ngx_quic_compat_keylog_callback(const SSL *ssl, const char *line)
 {

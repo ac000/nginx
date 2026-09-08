@@ -39,6 +39,7 @@ typedef struct ssl_quic_method_st {
 
 
 ngx_int_t ngx_quic_compat_init(ngx_conf_t *cf, SSL_CTX *ctx);
+ngx_int_t ngx_quic_compat_has_transport_params(SSL_CTX *ctx);
 
 int SSL_set_quic_method(SSL *ssl, const SSL_QUIC_METHOD *quic_method);
 int SSL_provide_quic_data(SSL *ssl, enum ssl_encryption_level_t level,

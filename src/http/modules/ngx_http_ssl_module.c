@@ -1379,6 +1379,9 @@ static ngx_int_t
 ngx_http_ssl_init(ngx_conf_t *cf)
 {
     ngx_uint_t                   a, p, s;
+#if (NGX_QUIC_OPENSSL_COMPAT)
+    ngx_uint_t                   quic;
+#endif
     const char                  *name;
     ngx_http_conf_addr_t        *addr;
     ngx_http_conf_port_t        *port;
@@ -1423,6 +1426,10 @@ ngx_http_ssl_init(ngx_conf_t *cf)
         return NGX_OK;
     }
 
+#if (NGX_QUIC_OPENSSL_COMPAT)
+    quic = 0;
+#endif
+
     port = cmcf->ports->elts;
     for (p = 0; p < cmcf->ports->nelts; p++) {
 
@@ -1437,6 +1444,8 @@ ngx_http_ssl_init(ngx_conf_t *cf)
                 name = "quic";
 
 #if (NGX_QUIC_OPENSSL_COMPAT)
+                quic = 1;
+
                 if (ngx_http_ssl_quic_compat_init(cf, &addr[a]) != NGX_OK) {
                     return NGX_ERROR;
                 }
@@ -1493,6 +1502,76 @@ ngx_http_ssl_init(ngx_conf_t *cf)
             }
         }
     }
+
+#if (NGX_QUIC_OPENSSL_COMPAT)
+
+    /*
+     * The compatibility layer registers a custom TLS extension only on the
+     * SSL contexts of servers reachable over QUIC.  Contexts that share a
+     * plain TLS address with such a server thus end up with more custom
+     * extensions than the address's default server.  Selecting a virtual
+     * server by SNI can then install a context with one more extension than
+     * the default server the ClientHello extension array was sized for, and
+     * OpenSSL reads, and may write, one entry past the end of that array.
+     *
+     * To keep the count consistent, register the extension on the default
+     * server of any address that has a server carrying it.  A default server
+     * may itself be selectable on another address, so repeat until no more
+     * contexts change.
+     */
+
+    if (quic) {
+        ngx_uint_t                changed;
+        ngx_http_ssl_srv_conf_t  *dscf;
+
+        do {
+            changed = 0;
+
+            for (p = 0; p < cmcf->ports->nelts; p++) {
+
+                addr = port[p].addrs.elts;
+                for (a = 0; a < port[p].addrs.nelts; a++) {
+
+                    if (!addr[a].opt.ssl && !addr[a].opt.quic) {
+                        continue;
+                    }
+
+                    cscf = addr[a].default_server;
+                    dscf = cscf->ctx->srv_conf[ngx_http_ssl_module.ctx_index];
+
+                    if (dscf->ssl.ctx == NULL
+                        || ngx_quic_compat_has_transport_params(dscf->ssl.ctx))
+                    {
+                        continue;
+                    }
+
+                    cscfp = addr[a].servers.elts;
+                    for (s = 0; s < addr[a].servers.nelts; s++) {
+
+                        sscf = cscfp[s]->ctx->srv_conf[
+                                              ngx_http_ssl_module.ctx_index];
+
+                        if (sscf->ssl.ctx == NULL
+                            || !ngx_quic_compat_has_transport_params(
+                                                              sscf->ssl.ctx))
+                        {
+                            continue;
+                        }
+
+                        if (ngx_quic_compat_init(cf, dscf->ssl.ctx) != NGX_OK) {
+                            return NGX_ERROR;
+                        }
+
+                        changed = 1;
+                        break;
+                    }
+                }
+            }
+
+        } while (changed);
+    }
+
+#endif
 
     return NGX_OK;
 }
