@@ -48,6 +48,9 @@ typedef struct ngx_quic_keys_s        ngx_quic_keys_t;
 #include <ngx_event_quic_ack.h>
 #include <ngx_event_quic_output.h>
 #include <ngx_event_quic_socket.h>
+#if (NGX_QUIC_BPF)
+#include <ngx_event_quic_bpf.h>
+#endif
 
 
 /* RFC 9002, 6.2.2.  Handshakes and New Paths: kInitialRtt */
@@ -168,6 +171,21 @@ typedef struct {
 
     ngx_uint_t                        initialized;
                                                  /* unsigned  initialized:1; */
+
+    /*
+     * Reusable scratch array for ngx_quic_flush_streams_by_priority(), grown
+     * on demand and freed only when the connection is destroyed, so the
+     * scheduler does not allocate from the connection pool on every flush.
+     */
+    ngx_quic_stream_t               **sched;
+    ngx_uint_t                        sched_nalloc;
+
+    /*
+     * Round-robin cursor (a stream id) for incremental RFC 9218 groups,
+     * preserved across flushes so successive small MAX_DATA increases advance
+     * different streams instead of always starting at the group's lowest id.
+     */
+    uint64_t                          sched_rr_next;
 } ngx_quic_streams_t;
 
 
