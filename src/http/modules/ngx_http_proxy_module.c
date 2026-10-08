@@ -1825,7 +1825,7 @@ ngx_http_proxy_process_status_line(ngx_http_request_t *r)
 
 #if (NGX_HTTP_CACHE)
 
-        if (r->cache) {
+        if (r->cached) {
             r->http_version = NGX_HTTP_VERSION_9;
             return NGX_OK;
         }
