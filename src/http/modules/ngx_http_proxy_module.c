@@ -1841,6 +1841,10 @@ ngx_http_proxy_process_status_line(ngx_http_request_t *r)
         }
 #endif
 
+        if (r->http_version >= NGX_HTTP_VERSION_20) {
+            return NGX_HTTP_UPSTREAM_INVALID_HEADER;
+        }
+
         r->http_version = NGX_HTTP_VERSION_9;
         u->state->status = NGX_HTTP_OK;
         u->headers_in.connection_close = 1;
